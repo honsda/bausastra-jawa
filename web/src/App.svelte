@@ -158,13 +158,13 @@
   {/if}
 
   {#if route.name === 'word' && wordData && !wordData.error}
-    <h2>{wordData.headword}</h2>
-    <p class="muted">{[wordData.lang, wordData.pos, wordData.speech_level, wordData.source].filter(Boolean).join(' • ')}</p>
     <div class="entry-body">
       {#if aksaraOf(wordData)}
         <div class="aksara-side" lang="jv">{aksaraOf(wordData)}</div>
       {/if}
       <div class="defs-side">
+        <h2 class="word-title">{wordData.headword}</h2>
+        <p class="muted">{[wordData.lang, wordData.pos, wordData.speech_level, wordData.source].filter(Boolean).join(' • ')}</p>
         {#if wordData.definitions.length === 0}
           <p><i>Belum ada definisi.</i></p>
         {:else}
@@ -216,6 +216,7 @@
   .aksara-side { font-size: 2rem; line-height: 1.6; min-width: 7rem; max-width: 13rem; color: #0f6b4f; overflow-wrap: anywhere; }
   .defs-side { flex: 1; min-width: 0; }
   .defs-side ol { margin-top: 0.2rem; }
+  .word-title { margin: 0.2rem 0 0.4rem; }
   @media (max-width: 560px) { .entry-body { flex-direction: column; } }
   .pager { margin: 1rem 0; display: flex; gap: 1rem; }
   footer { margin-top: 2rem; color: #888; font-size: 0.85rem; }
