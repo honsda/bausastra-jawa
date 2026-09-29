@@ -1,0 +1,15 @@
+# Bausastra runtime deps
+psycopg[binary]>=3.1
+psycopg2-binary>=2.9
+SQLAlchemy>=2.0
+requests>=2.31
+beautifulsoup4>=4.12
+lxml>=5.0
+trafilatura>=1.8
+pandas>=2.0
+datasets>=2.18
+huggingface-hub>=0.22
+tqdm>=4.66
+python-dotenv>=1.0
+click>=8.1
+flask>=3.0

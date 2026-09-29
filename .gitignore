@@ -1,0 +1,10 @@
+__pycache__/
+.venv/
+*.egg-info/
+src/*.egg-info/
+.env
+data/*.db
+data/*.html
+data/server*.log
+web/node_modules/
+web/dist/

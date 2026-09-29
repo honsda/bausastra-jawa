@@ -1,0 +1,6 @@
+# Sample Javanese-language sites to scrape (start here)
+https://jv.wikipedia.org/wiki/Basa_Jawa
+https://jv.wikipedia.org/wiki/Sastra_Jawa
+https://www.sastra.org/
+https://kbji.kemendikdasmen.go.id/
+https://www.kamusjawa.net/
