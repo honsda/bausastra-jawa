@@ -231,7 +231,8 @@ def frontend(path: str):
         target = DIST / path
         if path and target.is_file():
             return send_from_directory(DIST, path)
-        return send_from_directory(DIST, "index.html")
+        # never cache index.html: it pins hashed asset names, stale HTML = stale app
+        return send_from_directory(DIST, "index.html", max_age=0)
     return (jsonify({"ok": True, "message": "API running. Build the frontend: cd web && npm install && npm run build",
                      "endpoints": ["/api/stats", "/api/letters", "/api/search?q=", "/api/letter/A", "/api/word/1"]}), 200)
 
