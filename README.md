@@ -127,6 +127,33 @@ cd web; npm install; npm run dev   # http://127.0.0.1:5173
 cd web; npm run build
 ```
 
+## 10. Public API (for other apps, e.g. sinau)
+
+Stable versioned endpoints + machine-readable docs at `/api/docs`.
+Transliteration uses the **sinau tables** (`src/bausastra/sinau_lexicon.json`,
+ported from `honsda/sinau`); every `jv`/`kawi` entry also stores `aksara_jawa`.
+
+```powershell
+python -m bausastra.cli transliterate --text "sugeng rawuh"  # CLI
+python -m bausastra.cli transliterate --backfill              # fill DB aksara
+curl "http://127.0.0.1:5000/api/v1/transliterate?text=sugeng%20rawuh"
+curl "http://127.0.0.1:5000/api/v1/reverse?text=ꦧꦚꦸ"
+curl "http://127.0.0.1:5000/api/v1/search?q=wonten"
+curl "http://127.0.0.1:5000/api/v1/word/5184"   # definitions + aksara_jawa + synonyms
+```
+
+| Endpoint | Desc |
+|---|---|
+| `GET /api/v1/search?q=&limit=` | ranked search (exact → prefix → contains) |
+| `GET /api/v1/letter/<A-Z>?page=` | browse by initial, 50/page |
+| `GET /api/v1/letters` | categories with counts |
+| `GET /api/v1/word/<id>` | detail + `aksara_jawa` + synonyms |
+| `GET\|POST /api/v1/transliterate` | Latin → Aksara (`?text=` or JSON) |
+| `GET\|POST /api/v1/reverse` | Aksara → Latin |
+| `GET /api/v1/stats`, `GET /api/docs` | counts, full endpoint listing |
+
+## 11. Next steps
+
 ## 10. Next steps
 
 - [ ] Get KBJI API key (Balai Bahasa DIY) for 41k official lemmata bulk import

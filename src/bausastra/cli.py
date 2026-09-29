@@ -205,6 +205,23 @@ def lookup(q, limit):
 
 
 @cli.command()
+@click.option("--text", default="", help="Latin text to transliterate to Aksara Jawa")
+@click.option("--reverse", default="", help="Aksara Jawa text to transliterate back to Latin")
+@click.option("--backfill", is_flag=True, help="fill missing aksara_jawa for all jv/kawi entries")
+def transliterate(text, reverse, backfill):
+    """Transliterate via sinau tables, or backfill the DB."""
+    from .transliterate import transliterate as tr, reverse_transliterate as rt, backfill_aksara
+    if text:
+        click.echo(tr(text))
+    if reverse:
+        click.echo(rt(reverse))
+    if backfill:
+        backfill_aksara(get_engine())
+    if not text and not reverse and not backfill:
+        raise click.UsageError("provide --text, --reverse, or --backfill")
+
+
+@cli.command()
 @click.option("--port", default=5000, help="port to listen on")
 def serve(port):
     """Start the Bausastra JSON API (frontend in web/, served if built)."""

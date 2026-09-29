@@ -24,6 +24,7 @@ import requests
 from sqlalchemy import text as stext
 from sqlalchemy.engine import Connection
 from .javanese import normalize
+from .transliterate import transliterate
 
 ROOT = Path(__file__).resolve().parents[2]
 UA = {"User-Agent": "BausastraBot/0.1 (+javanese-dictionary-research; contact: local)"}
@@ -60,6 +61,8 @@ def _insert_fast(conn: Connection, is_pg: bool, headword: str, definition: str,
         return None
     headword = headword.strip()[:200]
     norm = normalize(headword)
+    if aksara is None and lang in ("jv", "kawi"):
+        aksara = transliterate(headword)[:500] or None  # auto-transliterate (sinau tables)
     raw_json = json.dumps(raw, ensure_ascii=False) if isinstance(raw, dict) else raw
     if is_pg:
         conn.execute(stext("""

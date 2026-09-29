@@ -1,0 +1,60 @@
+{
+    "_meta": "Vendored from ../sinau/lexicon.json (honsda/sinau, Latin to Javanese Script). Additions vs upstream: è and é map to taling (KBJI-style accented e), so dictionary headwords render correctly.",
+    "consonants": {
+        "h": "ꦲ",
+        "n": "ꦤ",
+        "c": "ꦕ",
+        "r": "ꦫ",
+        "k": "ꦏ",
+        "d": "ꦢ",
+        "t": "ꦠ",
+        "s": "ꦱ",
+        "w": "ꦮ",
+        "l": "ꦭ",
+        "p": "ꦥ",
+        "dh": "ꦣ",
+        "j": "ꦗ",
+        "y": "ꦪ",
+        "ny": "ꦚ",
+        "m": "ꦩ",
+        "g": "ꦒ",
+        "b": "ꦧ",
+        "th": "ꦜ",
+        "ng": "ꦔ",
+        "kh": "ꦏ꦳",
+        "dz": "ꦢ꦳",
+        "f": "ꦥ꦳",
+        "v": "ꦥ꦳",
+        "z": "ꦗ꦳",
+        "gh": "ꦒ꦳",
+        "sy": "ꦱ꦳",
+        "sh": "ꦱ꦳",
+        "q": "ꦏ",
+        "x": "ꦏ꧀ꦱ"
+    },
+    "vowels": {
+        "i": "ꦶ",
+        "u": "ꦸ",
+        "e": "ꦺ",
+        "o": "ꦺꦴ",
+        "ê": "ꦼ",
+        "è": "ꦺ",
+        "é": "ꦺ",
+        "x": "ꦼ",
+        "a": ""
+    },
+    "final": {
+        "h": "ꦃ",
+        "r": "ꦂ",
+        "ng": "ꦁ"
+    },
+    "punctuations": {
+        ".": "꧉",
+        ",": "꧈",
+        ":": "꧇",
+        "(": "꧌",
+        ")": "꧍",
+        "-": "꧀"
+    },
+    "pangkon": "꧀"
+}
