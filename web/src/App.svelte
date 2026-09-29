@@ -1,5 +1,6 @@
 <script>
   import { onMount } from 'svelte';
+  import { toJavanese } from 'carakanjs';
 
   let route = { name: 'home' };
   let letters = [];
@@ -69,6 +70,16 @@
 
   function fmt(n) {
     return (n || 0).toLocaleString('id-ID');
+  }
+
+  function aksaraOf(w) {
+    if (!w) return '';
+    if (w.aksara_jawa) return w.aksara_jawa; // official spelling wins when present
+    try {
+      return toJavanese(w.headword, { useAccents: true });
+    } catch (e) {
+      return '';
+    }
   }
 
   onMount(async () => {
@@ -149,23 +160,29 @@
   {#if route.name === 'word' && wordData && !wordData.error}
     <h2>{wordData.headword}</h2>
     <p class="muted">{[wordData.lang, wordData.pos, wordData.speech_level, wordData.source].filter(Boolean).join(' • ')}</p>
-    {#if wordData.aksara_jawa}<p class="aksara">{wordData.aksara_jawa}</p>{/if}
-    {#if wordData.definitions.length === 0}
-      <p><i>Belum ada definisi.</i></p>
-    {:else}
-      <ol>
-        {#each wordData.definitions as d}
-          <li><span class="muted">[{d.lang}]</span> {d.text}</li>
-        {/each}
-      </ol>
-    {/if}
-    {#if wordData.synonyms.length > 0}
-      <p><b>Sinonim/dasanama:</b>
-        {#each wordData.synonyms as s, i}
-          <a href="#/word/{s.id}">{s.headword}</a>{i < wordData.synonyms.length - 1 ? ', ' : ''}
-        {/each}
-      </p>
-    {/if}
+    <div class="entry-body">
+      {#if aksaraOf(wordData)}
+        <div class="aksara-side" lang="jv">{aksaraOf(wordData)}</div>
+      {/if}
+      <div class="defs-side">
+        {#if wordData.definitions.length === 0}
+          <p><i>Belum ada definisi.</i></p>
+        {:else}
+          <ol>
+            {#each wordData.definitions as d}
+              <li><span class="muted">[{d.lang}]</span> {d.text}</li>
+            {/each}
+          </ol>
+        {/if}
+        {#if wordData.synonyms.length > 0}
+          <p><b>Sinonim/dasanama:</b>
+            {#each wordData.synonyms as s, i}
+              <a href="#/word/{s.id}">{s.headword}</a>{i < wordData.synonyms.length - 1 ? ', ' : ''}
+            {/each}
+          </p>
+        {/if}
+      </div>
+    </div>
   {/if}
 
   {#if (route.name === 'letter' && letterData?.error) || (route.name === 'word' && wordData?.error)}
@@ -195,7 +212,11 @@
   ul.results a:hover { text-decoration: underline; }
   .muted { color: #666; font-size: 0.85rem; }
   .def { margin: 0.2rem 0; }
-  .aksara { font-size: 1.6rem; }
+  .entry-body { display: flex; gap: 1.25rem; align-items: flex-start; }
+  .aksara-side { font-size: 2rem; line-height: 1.6; min-width: 7rem; max-width: 13rem; color: #0f6b4f; overflow-wrap: anywhere; }
+  .defs-side { flex: 1; min-width: 0; }
+  .defs-side ol { margin-top: 0.2rem; }
+  @media (max-width: 560px) { .entry-body { flex-direction: column; } }
   .pager { margin: 1rem 0; display: flex; gap: 1rem; }
   footer { margin-top: 2rem; color: #888; font-size: 0.85rem; }
 </style>
