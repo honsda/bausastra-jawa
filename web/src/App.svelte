@@ -75,11 +75,14 @@
   function aksaraOf(w) {
     if (!w) return '';
     if (w.aksara_jawa) return w.aksara_jawa; // official spelling wins when present
-    try {
-      return toJavanese(w.headword, { useAccents: true });
-    } catch (e) {
-      return '';
+    if (w.lang === 'jv' || w.lang === 'kawi' || !w.lang) {
+      try {
+        return toJavanese(w.headword, { useAccents: true });
+      } catch (e) {
+        return '';
+      }
     }
+    return '';
   }
 
   onMount(async () => {
@@ -122,10 +125,13 @@
         <p>{results.length} hasil untuk <b>{q}</b>:</p>
         <ul class="results">
           {#each results as r}
-            <li>
-              <a href="#/word/{r.id}">{r.headword}</a>
-              <span class="muted">{meta(r)}</span>
-              {#if r.definition}<p class="def">{r.definition.slice(0, 280)}</p>{/if}
+            <li class="row">
+              {#if aksaraOf(r)}<span class="row-aksara">{aksaraOf(r)}</span>{/if}
+              <div class="row-body">
+                <a href="#/word/{r.id}">{r.headword}</a>
+                <span class="muted">{meta(r)}</span>
+                {#if r.definition}<p class="def">{r.definition.slice(0, 280)}</p>{/if}
+              </div>
             </li>
           {/each}
         </ul>
@@ -140,10 +146,13 @@
     <p class="muted">Hal {letterData.page}/{letterData.pages} • {fmt(letterData.total)} lema</p>
     <ul class="results">
       {#each letterData.items as r}
-        <li>
-          <a href="#/word/{r.id}">{r.headword}</a>
-          <span class="muted">{meta(r)}</span>
-          {#if r.definition}<p class="def">{r.definition.slice(0, 280)}</p>{/if}
+        <li class="row">
+          {#if aksaraOf(r)}<span class="row-aksara">{aksaraOf(r)}</span>{/if}
+          <div class="row-body">
+            <a href="#/word/{r.id}">{r.headword}</a>
+            <span class="muted">{meta(r)}</span>
+            {#if r.definition}<p class="def">{r.definition.slice(0, 280)}</p>{/if}
+          </div>
         </li>
       {/each}
     </ul>
@@ -207,7 +216,9 @@
   .letters a.active small { color: #cfe8dd; }
   .letters .empty { padding: 0.3rem 0.6rem; opacity: 0.35; }
   ul.results { list-style: none; padding: 0; }
-  ul.results li { padding: 0.5rem 0; border-bottom: 1px solid #eee; }
+  ul.results li.row { display: flex; gap: 0.75rem; align-items: flex-start; padding: 0.5rem 0; border-bottom: 1px solid #eee; }
+  .row-aksara { color: #0f6b4f; font-size: 1.15rem; line-height: 1.5; min-width: 4.5rem; overflow-wrap: anywhere; }
+  .row-body { flex: 1; min-width: 0; }
   ul.results a { font-weight: 600; color: #111; text-decoration: none; }
   ul.results a:hover { text-decoration: underline; }
   .muted { color: #666; font-size: 0.85rem; }

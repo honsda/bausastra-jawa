@@ -34,9 +34,11 @@ def _engine():
 
 
 def _row_to_item(r) -> dict:
-    eid, hw, lang, lvl, src, defi = r
+    eid, hw, lang, lvl, src, defi, aks = r
+    if not aks and lang in ("jv", "kawi"):
+        aks = transliterate(hw or "") or None  # auto-transliterate on read
     return {"id": eid, "headword": hw, "lang": lang, "speech_level": lvl,
-            "source": src, "definition": defi}
+            "source": src, "definition": defi, "aksara_jawa": aks}
 
 
 def _do_stats() -> dict:
@@ -62,7 +64,7 @@ def _do_search(q: str, limit: int = 50) -> list:
     nq = normalize(q)
     with _engine().connect() as c:
         rows = c.execute(stext("""
-            SELECT e.id, e.headword, e.lang, e.speech_level, s.name, d.definition
+            SELECT e.id, e.headword, e.lang, e.speech_level, s.name, d.definition, e.aksara_jawa
             FROM entries e LEFT JOIN sources s ON s.id=e.source_id
             LEFT JOIN definitions d ON d.entry_id=e.id
             AND d.id=(SELECT MIN(id) FROM definitions WHERE entry_id=e.id)
@@ -81,7 +83,7 @@ def _do_letter(letter: str, page: int = 1) -> dict:
             "SELECT COUNT(*) FROM entries WHERE substr(headword_norm,1,1)=:l"),
             {"l": letter}).scalar() or 0
         rows = c.execute(stext("""
-            SELECT e.id, e.headword, e.lang, e.speech_level, s.name, d.definition
+            SELECT e.id, e.headword, e.lang, e.speech_level, s.name, d.definition, e.aksara_jawa
             FROM entries e LEFT JOIN sources s ON s.id=e.source_id
             LEFT JOIN definitions d ON d.entry_id=e.id
             AND d.id=(SELECT MIN(id) FROM definitions WHERE entry_id=e.id)

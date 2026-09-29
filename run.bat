@@ -9,23 +9,25 @@ if not exist ".venv\Scripts\python.exe" (
   exit /b 1
 )
 
-if not exist "web\dist\index.html" (
-  echo [bausastra] Frontend not built yet - building now...
-  where npm >nul 2>nul
-  if errorlevel 1 (
-    echo [bausastra] Node.js/npm is required to build the frontend.
-    pause
-    exit /b 1
-  )
+echo [bausastra] Syncing frontend...
+where npm >nul 2>nul
+if errorlevel 1 (
+  echo [bausastra] Node.js/npm is required to build the frontend.
+  pause
+  exit /b 1
+)
+if not exist "web\node_modules" (
   pushd web
   call npm install
-  call npm run build
   popd
-  if not exist "web\dist\index.html" (
-    echo [bausastra] Frontend build failed.
-    pause
-    exit /b 1
-  )
+)
+pushd web
+call npm run build
+popd
+if not exist "web\dist\index.html" (
+  echo [bausastra] Frontend build failed.
+  pause
+  exit /b 1
 )
 
 echo [bausastra] Starting API + website at http://127.0.0.1:5000 ...
