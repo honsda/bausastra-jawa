@@ -8,3 +8,5 @@ data/*.html
 data/server*.log
 web/node_modules/
 web/dist/
+scrapper/ai_seen.json
+scrapper/__pycache__/

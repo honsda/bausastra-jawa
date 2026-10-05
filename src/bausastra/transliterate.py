@@ -5,12 +5,20 @@ Algorithm (greedy longest-match, same as sinau/web/src/translator.js):
 - consonant with no vowel -> final sign (h/r/ng), base+pangkon mid-word, bare base at end
 - standalone vowel -> ha + sandhangan
 - punctuation mapping, anything else passes through
+- hyphens: full reduplication (dalan-dalan, dalan2) -> base + ꧒ (U+A9D2);
+  other hyphens are dropped (tutur-kata -> tuturkata). Reverse expands ꧒
+  back to word-word.
 Tables live in sinau_lexicon.json (vendored from sinau/lexicon.json).
 """
 from __future__ import annotations
 import json
+import re
 from functools import lru_cache
 from pathlib import Path
+
+REDUPL = "\ua9d2"  # U+A9D2 reduplication marker (dalan-dalan -> dalan + 2-sign)
+_SENTINEL = "\ue000"  # private-use placeholder used while reversing
+_REDUPL2_RE = re.compile(r"^([A-Za-z]+)2$")
 
 _LEX_PATH = Path(__file__).with_name("sinau_lexicon.json")
 
@@ -24,19 +32,94 @@ def _sorted_keys(d: dict) -> list[str]:
     return sorted(d.keys(), key=len, reverse=True)
 
 
-def transliterate(text: str) -> str:
-    """Latin Javanese -> Aksara Jawa."""
-    if not text:
-        return ""
+@lru_cache(maxsize=1)
+def _tables():
+    """Pre-sorted lookup tables + precomputed char sets (built once)."""
     lex = lexicon()
     consonants = lex["consonants"]
     vowels = lex["vowels"]
     finals = lex["final"]
     puncts = lex.get("punctuations", {})
-    pangkon = lex["pangkon"]
-    clist = _sorted_keys(consonants)
-    vlist = _sorted_keys(vowels)
-    plist = _sorted_keys(puncts)
+    return {
+        "lex": lex,
+        "consonants": consonants,
+        "vowels": vowels,
+        "finals": finals,
+        "puncts": puncts,
+        "pangkon": lex["pangkon"],
+        "clist": _sorted_keys(consonants),
+        "vlist": _sorted_keys(vowels),
+        "plist": _sorted_keys(puncts),
+        "vowel_signs": {v for v in vowels.values() if v},
+        "final_signs": set(finals.values()),
+        "cons_set": set(consonants.values()),
+    }
+
+
+def transliterate(text: str) -> str:
+    """Latin Javanese -> Aksara Jawa.
+
+    Hyphenated tokens: full reduplication (dalan-dalan) becomes base + 2-sign;
+    a trailing 2 works too (dalan2); other hyphens are dropped (tutur-kata
+    becomes tuturkata).
+    """
+    if not text:
+        return ""
+    return "".join(_transl_token(t) for t in re.split(r"(\s+)", text))
+
+
+def _with_paten(base_aksara: str, latin: str = "") -> str:
+    """Kill the final vowel of a base (dalan -> dalan + pangkon).
+
+    Only when the word ends in a consonant *sound*: the Latin form must end
+    in a consonant letter (tuwa ends in 'a' -> no paten) AND the aksara must
+    end in a bare consonant (vowel/final signs and pangkon stay untouched).
+    """
+    if not base_aksara:
+        return base_aksara
+    if latin and latin[-1].lower() in "aiueo":
+        return base_aksara
+    t = _tables()
+    vowel_signs = t["vowel_signs"]
+    final_signs = t["final_signs"]
+    cons = t["cons_set"]
+    last = base_aksara[-1]
+    if last in vowel_signs or last in final_signs or last == t["lex"]["pangkon"]:
+        return base_aksara
+    if last in cons:
+        return base_aksara + t["lex"]["pangkon"]
+    return base_aksara
+
+
+def _transl_token(tok: str) -> str:
+    if not tok or tok.isspace():
+        return tok
+    if "-" in tok:
+        parts = tok.split("-")
+        if (len(parts) >= 2 and parts[0]
+                and all(p and p.lower() == parts[0].lower() for p in parts)):
+            return _with_paten(_transl_core(parts[0]), parts[0]) + REDUPL
+        joined = "".join(parts)
+        return _with_paten(_transl_core(joined), joined)
+    m = _REDUPL2_RE.fullmatch(tok)
+    if m:
+        return _with_paten(_transl_core(m.group(1)), m.group(1)) + REDUPL
+    return _with_paten(_transl_core(tok), tok)
+
+
+def _transl_core(text: str) -> str:
+    """Greedy longest-match transliteration of hyphen-free text."""
+    if not text:
+        return ""
+    t = _tables()
+    consonants = t["consonants"]
+    vowels = t["vowels"]
+    finals = t["finals"]
+    puncts = t["puncts"]
+    pangkon = t["pangkon"]
+    clist = t["clist"]
+    vlist = t["vlist"]
+    plist = t["plist"]
 
     out: list[str] = []
     lower = text.lower()
@@ -81,7 +164,11 @@ def transliterate(text: str) -> str:
 
 
 def reverse_transliterate(text: str) -> str:
-    """Aksara Jawa -> Latin Javanese (same rules as sinau reverseTransl)."""
+    """Aksara Jawa -> Latin Javanese (same rules as sinau reverseTransl).
+
+    A trailing 2-sign expands back to reduplication (dalan + 2-sign becomes
+    dalan-dalan); a standalone 2-sign becomes "2".
+    """
     if not text:
         return ""
     lex = lexicon()
@@ -93,7 +180,7 @@ def reverse_transliterate(text: str) -> str:
     rev_vow = {v: k for k, v in lex["vowels"].items() if v != ""}
     rev_fin = {v: k for k, v in lex["final"].items()}
     rev_punct = {v: k for k, v in lex.get("punctuations", {}).items()}
-    units = sorted(set(rev_cons) | set(rev_vow) | set(rev_fin) | set(rev_punct) | {pangkon},
+    units = sorted(set(rev_cons) | set(rev_vow) | set(rev_fin) | set(rev_punct) | {pangkon, REDUPL},
                    key=len, reverse=True)
 
     out: list[str] = []
@@ -109,6 +196,10 @@ def reverse_transliterate(text: str) -> str:
         if u is None:
             out.append(ch)
             i += 1
+            continue
+        if u == REDUPL:
+            out.append(_SENTINEL)
+            i += len(u)
             continue
         if u in rev_cons:
             lat = rev_cons[u]
@@ -134,7 +225,23 @@ def reverse_transliterate(text: str) -> str:
             i += len(u)
         else:  # bare pangkon
             i += len(u)
-    return "".join(out)
+    return _expand_redupl("".join(out))
+
+
+def _expand_redupl(s: str) -> str:
+    """Expand 2-sign sentinels: word + sign -> word-word, lone sign -> "2"."""
+    parts = []
+    for p in re.split(r"(\s+)", s):
+        if _SENTINEL in p and not p.isspace():
+            while p.endswith(_SENTINEL):
+                base = p[:-1]
+                m = re.search(r"[A-Za-z]+$", base)
+                if not m:
+                    break
+                p = base + "-" + m.group(0)
+            p = p.replace(_SENTINEL, "2")
+        parts.append(p)
+    return "".join(parts)
 
 
 def backfill_aksara(engine, langs=("jv", "kawi"), batch: int = 500) -> int:

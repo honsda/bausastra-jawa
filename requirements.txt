@@ -1,6 +1,5 @@
-# Bausastra runtime deps
+# Bausastra runtime deps (single source of truth; pyproject.toml mirrors this)
 psycopg[binary]>=3.1
-psycopg2-binary>=2.9
 SQLAlchemy>=2.0
 requests>=2.31
 beautifulsoup4>=4.12
@@ -13,3 +12,6 @@ tqdm>=4.66
 python-dotenv>=1.0
 click>=8.1
 flask>=3.0
+flask-cors>=4.0
+redis>=5.0
+gunicorn>=21.2; sys_platform != "win32"

@@ -1,0 +1,7 @@
+# One URL per line. Used by: python -m scrapper.run_all --source wikipedia --from-file scrapper/sources.txt
+# Dictionary / Javanese-text sources (polite scrape: keep delay >= 0.4s, respect robots.txt + ToS)
+https://jv.wikipedia.org/wiki/Basa_Jawa
+https://jv.wikipedia.org/wiki/Sastra_Jawa
+https://kbji.kemendikdasmen.go.id/
+https://www.kamusjawa.net/
+https://www.sastra.org/

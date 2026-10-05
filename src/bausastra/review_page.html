@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bausastra — AI Review Desk</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { font-family: system-ui, sans-serif; max-width: 900px; margin: 0 auto; padding: 16px; }
+  .bar { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; border: 1px solid #8884;
+         border-radius: 10px; padding: 12px; margin-bottom: 16px; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+  .on { background: #22a355; } .off { background: #999; }
+  .card { border: 1px solid #8884; border-radius: 10px; padding: 12px; margin-bottom: 12px; }
+  .meta { font-size: 12px; opacity: .75; }
+  textarea { width: 100%; min-height: 56px; font: inherit; }
+  button { padding: 6px 14px; margin-right: 8px; cursor: pointer; }
+  .approve { background: #22a355; color: #fff; border: 0; border-radius: 6px; }
+  .reject { background: #c0392b; color: #fff; border: 0; border-radius: 6px; }
+  input, select { padding: 5px; font: inherit; }
+</style>
+</head>
+<body>
+<h1>AI Review Desk <span class="meta">(qwen drafts, human decides)</span></h1>
+
+<div class="bar" id="worker">
+  <span><span class="dot off" id="dot"></span> <b id="wstate">stopped</b></span>
+  <span class="meta" id="wstats"></span>
+  <label>batch <input id="limit" type="number" value="5" min="1" max="30" style="width:52px"></label>
+  <label>pause(s) <input id="interval" type="number" value="20" min="5" max="600" style="width:60px"></label>
+  <label>words <input id="words" placeholder="optional,a,b" style="width:140px"></label>
+  <label>admin token <input id="token" type="password" placeholder="BAUSASTRA_ADMIN_TOKEN" style="width:140px"></label>
+  <button id="start">Start worker</button>
+  <button id="stop">Stop</button>
+  <button id="refresh">Refresh queue</button>
+</div>
+
+<div class="bar"><span id="qstats">loading queue…</span></div>
+<div id="queue"></div>
+
+<script>
+const $ = id => document.getElementById(id);
+const token = () => ($('token') && $('token').value) || '';
+
+async function api(path, opts) {
+  opts = opts || {};
+  opts.headers = Object.assign({}, opts.headers || {});
+  if (token()) opts.headers['X-Admin-Token'] = token();
+  const r = await fetch(path, opts);
+  return r.json();
+}
+async function wstatus() {
+  const s = await api('/api/v1/ai/status');
+  const d = s.data || s;
+  $('dot').className = 'dot ' + (d.running ? 'on' : 'off');
+  $('wstate').textContent = d.running ? 'RUNNING' : 'stopped';
+  $('wstats').textContent =
+    `rounds ${d.rounds} · drafted ${d.drafted} · errors ${d.errors}` +
+    (d.current_word ? ` · now: ${d.current_word}` : '') +
+    (d.last_error ? ` · ERR: ${d.last_error}` : '');
+}
+async function queue() {
+  const q = await api('/api/v1/review/queue?limit=20');
+  const d = q.data || q;
+  $('qstats').textContent = `${d.total} drafts pending`;
+  const box = $('queue');
+  box.innerHTML = '';
+  if (!d.items.length) { box.innerHTML = '<p>Queue empty — start the worker and Qwen will fill this.</p>'; return; }
+  for (const it of d.items) {
+    const el = document.createElement('div');
+    el.className = 'card';
+    const clean = it.definition.replace(/^\[AI-DRAFT[^\]]*\]\s*/, '');
+    el.innerHTML =
+      `<div><b>${it.headword}</b> <span class="meta">[${it.lang||'jv'}/${it.speech_level||'?'}/${it.pos||'?'}] ` +
+      `conf ${it.confidence ?? '?'} · ${it.source||''} · def #${it.def_id}</span></div>` +
+      `<div class="meta">AI raw: ${it.definition}</div>` +
+      `<textarea>${clean.replace(/</g,'&lt;')}</textarea><br><br>` +
+      `<button class="approve">Approve</button><button class="reject">Reject</button>`;
+    const [ta, btnA, btnR] = [el.querySelector('textarea'),
+      el.querySelector('.approve'), el.querySelector('.reject')];
+    btnA.onclick = async () => {
+      await api('/api/v1/review/approve', {method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({id: it.def_id, text: ta.value})});
+      queue();
+    };
+    btnR.onclick = async () => {
+      if (!confirm(`Reject "${it.headword}"?`)) return;
+      await api('/api/v1/review/reject', {method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({id: it.def_id})});
+      queue();
+    };
+    box.appendChild(el);
+  }
+}
+$('start').onclick = async () => {
+  await api('/api/v1/ai/start', {method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({limit: +$('limit').value || 5,
+      interval: +$('interval').value || 20, words: $('words').value})});
+  wstatus();
+};
+$('stop').onclick = async () => { await api('/api/v1/ai/stop', {method:'POST'}); wstatus(); };
+$('refresh').onclick = queue;
+wstatus(); queue();
+setInterval(wstatus, 3000);
+setInterval(queue, 8000);
+</script>
+</body>
+</html>

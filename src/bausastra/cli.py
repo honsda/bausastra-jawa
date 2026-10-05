@@ -1,11 +1,14 @@
 """CLI: `python -m bausastra.cli <command>` (run from repo root with venv active)."""
 from __future__ import annotations
 import json
+import logging
 from pathlib import Path
 import click
 from sqlalchemy import text as stext
 
 from .db import get_engine, init_postgres
+
+logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 from .scraper import scrape_url, analyze_text, load_dictionary_words
 from . import bootstrap as bs
 
@@ -126,6 +129,8 @@ def scrape(url, file_, limit, save):
 
 def _save_crawl(eng, res, dictionary):
     from .javanese import normalize as norm
+    # all_counts is already capped in scraper.analyze_text; hard-cap again here.
+    items = sorted(res["all_counts"].items(), key=lambda x: -x[1])[:5000]
     with eng.begin() as c:
         if eng.dialect.name == "postgresql":
             c.execute(stext("""
@@ -151,7 +156,7 @@ def _save_crawl(eng, res, dictionary):
                    "wc": res["word_count"], "uw": res["unique_words"],
                    "kw": res["known_words"], "unk": res["unknown_words"]})
         pid = c.execute(stext("SELECT id FROM crawl_pages WHERE url=:u"), {"u": res["url"]}).scalar()
-        for tok, cnt in res["all_counts"].items():
+        for tok, cnt in items:
             t = norm(tok)
             known = t in dictionary
             if eng.dialect.name == "postgresql":
@@ -222,13 +227,64 @@ def transliterate(text, reverse, backfill):
 
 
 @cli.command()
+@click.option("--list", "list_", is_flag=True, help="show pending AI drafts")
+@click.option("--limit", default=20, help="how many drafts to show")
+@click.option("--approve", default=0, help="approve draft by def_id")
+@click.option("--reject", default=0, help="reject draft by def_id")
+@click.option("--text", default="", help="edited definition text for --approve")
+def review(list_, limit, approve, reject, text):
+    """Review AI drafts: --list, --approve ID [--text ...], --reject ID."""
+    from . import review as rv
+    if list_ or (not approve and not reject):
+        q = rv.list_drafts(limit, 0)
+        click.echo(f"Pending AI drafts: {q['total']}")
+        for it in q["items"]:
+            click.echo(f"  #{it['def_id']} {it['headword']} "
+                       f"(conf {it['confidence']}): {it['definition'][:110]}")
+    if approve:
+        out = rv.approve(approve, text or None)
+        click.echo(f"approve #{approve}: {out}")
+    if reject:
+        out = rv.reject(reject)
+        click.echo(f"reject #{reject}: {out}")
+
+
+@cli.command()
 @click.option("--port", default=5000, help="port to listen on")
 def serve(port):
     """Start the Bausastra JSON API (frontend in web/, served if built)."""
     from .api import app
     click.echo(f"Bausastra API at http://127.0.0.1:{port}")
     app.run(host="127.0.0.1", port=port, debug=False)
-    app.run(host="127.0.0.1", port=port, debug=False)
+
+
+@cli.group()
+def apikey():
+    """Manage public API keys (stored hashed, raw shown once)."""
+
+
+@apikey.command("create")
+@click.option("--name", required=True, help="app/user name for the key")
+def apikey_create(name):
+    from . import public as pub
+    out = pub.create_key(get_engine(), name)
+    click.echo(f"prefix: {out['prefix']}")
+    click.echo(f"raw_key (STORE NOW, never shown again): {out['raw_key']}")
+
+
+@apikey.command("list")
+def apikey_list():
+    from . import public as pub
+    for k in pub.list_keys(get_engine()):
+        click.echo(f"#{k['id']} {k['prefix']} {k['name']} revoked={k['revoked']} last={k['last_used_at']}")
+
+
+@apikey.command("revoke")
+@click.option("--id", "ident", required=True, help="key id or prefix")
+def apikey_revoke(ident):
+    from . import public as pub
+    ok = pub.revoke_key(get_engine(), ident)
+    click.echo(f"revoked={ok}")
 
 
 if __name__ == "__main__":

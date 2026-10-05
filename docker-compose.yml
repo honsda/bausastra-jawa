@@ -11,7 +11,9 @@ services:
       - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
-      - ./sql:/docker-entrypoint-initdb.d:ro
+      # Only the Postgres schema is auto-applied on first init.
+      # schema_sqlite.sql is for the SQLite fallback and must NOT run here.
+      - ./sql/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-bausastra}"]
       interval: 10s

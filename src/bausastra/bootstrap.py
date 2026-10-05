@@ -34,6 +34,11 @@ def _is_pg(engine) -> bool:
     return engine.dialect.name == "postgresql"
 
 
+def is_postgres(engine) -> bool:
+    """Public alias for dialect check (prefer over private _is_pg)."""
+    return _is_pg(engine)
+
+
 def upsert_source(engine, name: str, url: str, kind="dictionary",
                   license: str | None = None, language_pair: str | None = None,
                   notes: str | None = None) -> int:
@@ -55,7 +60,8 @@ def upsert_source(engine, name: str, url: str, kind="dictionary",
 
 def _insert_fast(conn: Connection, is_pg: bool, headword: str, definition: str,
                  lang="jv", def_lang="id", pos=None, speech_level=None,
-                 source_id=None, source_ref=None, aksara=None, raw=None) -> int | None:
+                 source_id=None, source_ref=None, aksara=None, raw=None,
+                 context: str | None = None) -> int | None:
     """Insert one entry using an EXISTING connection (caller owns the transaction)."""
     if not headword or not headword.strip():
         return None
@@ -92,9 +98,10 @@ def _insert_fast(conn: Connection, is_pg: bool, headword: str, definition: str,
     eid = int(row[0])
     if definition and definition.strip():
         conn.execute(stext("""
-            INSERT INTO definitions (entry_id, lang, definition)
-            VALUES (:e,:dl,:d)
-        """), {"e": eid, "dl": def_lang, "d": definition.strip()[:4000]})
+            INSERT INTO definitions (entry_id, lang, definition, context)
+            VALUES (:e,:dl,:d,:ctx)
+        """), {"e": eid, "dl": def_lang, "d": definition.strip()[:4000],
+               "ctx": (context[:1000] if isinstance(context, str) else None)})
     return eid
 
 
@@ -114,6 +121,34 @@ def _flush_batch(engine, is_pg: bool, batch: list[dict]) -> int:
             if _insert_fast(conn, is_pg, **item):
                 n += 1
     return n
+
+
+def flush_batch(engine, batch: list[dict]) -> int:
+    """Public batched insert (own transaction). Prefer over _flush_batch."""
+    return _flush_batch(engine, _is_pg(engine), batch)
+
+
+_SESSION: requests.Session | None = None
+
+
+def _session() -> requests.Session:
+    """Shared session with retries (connection reuse for KBJI bulk runs)."""
+    global _SESSION
+    if _SESSION is None:
+        s = requests.Session()
+        s.headers.update(UA)
+        from requests.adapters import HTTPAdapter
+        try:
+            from urllib3.util.retry import Retry
+            retry = Retry(total=3, backoff_factor=0.5,
+                          status_forcelist=(429, 500, 502, 503, 504),
+                          allowed_methods=("GET",))
+            s.mount("https://", HTTPAdapter(max_retries=retry))
+            s.mount("http://", HTTPAdapter(max_retries=retry))
+        except Exception:
+            pass
+        _SESSION = s
+    return _SESSION
 
 
 # ---- Loader 1: HuggingFace multilingual lexicon (recommended boost-start) ----
@@ -324,7 +359,7 @@ def kbji_list_letter(letter: str, page: int = 1) -> tuple[list[str], int]:
     from bs4 import BeautifulSoup
     letter = letter.upper()
     url = f"{KBJI_BASE}/abjad/{letter}" + (f"?page={page}" if page > 1 else "")
-    r = requests.get(url, headers=UA, timeout=30)
+    r = _session().get(url, timeout=30)
     r.raise_for_status()
     soup = BeautifulSoup(r.text, "lxml")
     slugs: list[str] = []
@@ -357,7 +392,7 @@ def load_kbji_words(engine, words: list[str], delay: float = 0.4) -> int:
     for i, w in enumerate(words):
         slug = requests.utils.quote(w.strip(), safe="")
         try:
-            r = requests.get(f"{KBJI_BASE}/kata/{slug}", headers=UA, timeout=30)
+            r = _session().get(f"{KBJI_BASE}/kata/{slug}", timeout=30)
             if r.status_code == 404:
                 continue
             r.raise_for_status()

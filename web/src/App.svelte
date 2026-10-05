@@ -10,11 +10,19 @@
   let letterData = null;
   let wordData = null;
   let loading = false;
+  let searchTimer = null;
+  let searchCtrl = null;
 
-  async function get(url) {
-    const r = await fetch(url);
+  function unwrap(json) {
+    // support both /api/v1 ({ok,data}) and legacy /api (bare) shapes
+    if (json && typeof json === 'object' && 'data' in json && 'ok' in json) return json.data;
+    return json;
+  }
+
+  async function get(url, signal) {
+    const r = await fetch(url, signal ? { signal } : undefined);
     if (!r.ok) throw new Error(r.status);
-    return r.json();
+    return unwrap(await r.json());
   }
 
   function parseHash() {
@@ -37,31 +45,38 @@
     letterData = null; wordData = null;
     try {
       if (route.name === 'letter') {
-        letterData = await get(`/api/letter/${route.letter}?page=${route.page}`);
+        letterData = await get(`/api/v1/letter/${route.letter}?page=${route.page}`);
       } else if (route.name === 'word') {
-        wordData = await get(`/api/word/${route.id}`);
+        wordData = await get(`/api/v1/word/${route.id}`);
       }
     } catch (e) {
-      letterData = { error: true }; wordData = { error: true };
+      if (e?.name !== 'AbortError') letterData = { error: true }, wordData = { error: true };
     }
     loading = false;
   }
 
-  async function search() {
+  async function searchNow() {
+    if (!q.trim()) { results = null; return; }
+    if (searchCtrl) searchCtrl.abort();
+    searchCtrl = new AbortController();
+    loading = true;
+    try {
+      results = await get(`/api/v1/search?q=${encodeURIComponent(q.trim())}&limit=50`, searchCtrl.signal);
+    } catch (e) {
+      if (e?.name !== 'AbortError') results = [];
+    }
+    loading = false;
+  }
+
+  function search() {
     // searching always cancels any chosen letter/word view and queries fresh
     if (route.name !== 'home') {
       route = { name: 'home' };
       letterData = null; wordData = null;
       if ((location.hash || '#/') !== '#/') location.hash = '#/';
     }
-    if (!q.trim()) { results = null; return; }
-    loading = true;
-    try {
-      results = await get(`/api/search?q=${encodeURIComponent(q.trim())}`);
-    } catch (e) {
-      results = [];
-    }
-    loading = false;
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(searchNow, 250); // debounce typing
   }
 
   function meta(item) {
@@ -88,7 +103,7 @@
   onMount(async () => {
     window.addEventListener('hashchange', parseHash);
     try {
-      [letters, stats] = await Promise.all([get('/api/letters'), get('/api/stats')]);
+      [letters, stats] = await Promise.all([get('/api/v1/letters'), get('/api/v1/stats')]);
     } catch (e) { /* API not running yet */ }
     parseHash();
   });
@@ -97,21 +112,22 @@
 <header>
   <h1><a href="#/">ꦧꦻꦴꦱꦱ꧀ꦠꦿ Bausastra</a></h1>
   <p class="sub">Kamus Jawa–Indonesia • {fmt(stats.entries)} lema</p>
-  <form on:submit|preventDefault={search}>
-    <input bind:value={q} placeholder="Contoh: wonten, banyu, mangan…" />
-    <button>Cari</button>
+  <form on:submit|preventDefault={searchNow}>
+    <label class="sr" for="q">Cari kata</label>
+    <input id="q" bind:value={q} on:input={search} placeholder="Contoh: wonten, banyu, mangan…" autocomplete="off" />
+    <button type="submit">Cari</button>
   </form>
 </header>
 
-<nav class="letters">
-  {#each 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('') as ch}
-    {@const hit = letters.find((l) => l.letter === ch)}
-    {#if hit}
-      <a href="#/letter/{ch}" class:active={route.name === 'letter' && route.letter === ch}>{ch} <small>{fmt(hit.count)}</small></a>
-    {:else}
-      <span class="empty">{ch}</span>
-    {/if}
+<nav class="letters" aria-label="Telusuri per huruf awal">
+  {#each letters as hit}
+    <a href="#/letter/{hit.letter}" class:active={route.name === 'letter' && route.letter === hit.letter}>{hit.letter} <small>{fmt(hit.count)}</small></a>
   {/each}
+  {#if letters.length === 0}
+    {#each 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('') as ch}
+      <span class="empty">{ch}</span>
+    {/each}
+  {/if}
 </nav>
 
 <main>
@@ -222,6 +238,7 @@
   ul.results a { font-weight: 600; color: #111; text-decoration: none; }
   ul.results a:hover { text-decoration: underline; }
   .muted { color: #666; font-size: 0.85rem; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
   .def { margin: 0.2rem 0; }
   .entry-body { display: flex; gap: 1.25rem; align-items: flex-start; }
   .aksara-side { font-size: 2rem; line-height: 1.6; min-width: 7rem; max-width: 13rem; color: #0f6b4f; overflow-wrap: anywhere; }
